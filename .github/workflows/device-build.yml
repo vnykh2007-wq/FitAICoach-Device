@@ -37,8 +37,8 @@ jobs:
           codesign --force --sign - --entitlements Config/iOS.entitlements --generate-entitlement-der "$app"
           codesign --verify --strict "$watch"
           codesign --verify --strict "$app"
-          codesign --display --entitlements - "$app" > build/device/iOS-entitlements.plist
-          codesign --display --entitlements - "$watch" > build/device/Watch-entitlements.plist
+          codesign --display --entitlements - --xml "$app" > build/device/iOS-entitlements.plist
+          codesign --display --entitlements - --xml "$watch" > build/device/Watch-entitlements.plist
           python3 - <<'PY'
           import plistlib
           from pathlib import Path

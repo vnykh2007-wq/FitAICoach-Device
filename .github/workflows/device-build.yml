@@ -28,10 +28,10 @@ jobs:
       - name: Compile physical iPhone and embedded Watch apps
         run: |
           set -o pipefail
-          xcodebuild -project FitAICoach.xcodeproj -scheme FitAICoach -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build/Device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/device-build.log
+          xcodebuild -project FitAICoach.xcodeproj -scheme FitAICoach -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build/DeviceDerived CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/device-build.log
       - name: Verify ARM64 device platforms and package unsigned IPA
         run: |
-          python3 scripts/package_device.py build/Device/Build/Products/Release-iphoneos/FitAICoach.app build/device/UNSIGNED-DEVICE-FitAICoach.ipa
+          python3 scripts/package_device.py build/DeviceDerived/Build/Products/Release-iphoneos/FitAICoach.app build/device/UNSIGNED-DEVICE-FitAICoach.ipa
           printf '%s\n' 'Physical iOS/watchOS ARM64 build. UNSIGNED: requires Apple signing and device provisioning. This file is not ready to install.' > build/device/SIGNING-REQUIRED.txt
       - name: Save physical-device build and diagnostics
         if: always()

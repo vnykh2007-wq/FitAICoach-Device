@@ -1,0 +1,90 @@
+name: Experimental Watch installer build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
+    steps:
+      - name: Fetch pinned public sources
+        shell: pwsh
+        run: |
+          git clone https://github.com/Rzbck/iloader.git installer
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git -C installer checkout 70f37e9b4afc659ab44ec1944c034093f4cda416
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git clone https://github.com/Rzbck/isideload.git backend
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git -C backend checkout f7b9f3da570edd6824c29680545e710846d07df5
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            cargo-target
+          key: watch-installer-windows-70f37e9-f7b9f3d-v1
+      - name: Isolate experimental app storage
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          root = Path('installer')
+          config_path = root / 'src-tauri/tauri.conf.json'
+          config = json.loads(config_path.read_text())
+          config['identifier'] = 'local.fitai.watch-installer.experimental'
+          config['productName'] = 'iloader Watch Experimental'
+          config['app']['windows'][0]['title'] = 'iloader Watch Experimental - unofficial'
+          config['plugins']['updater']['endpoints'] = []
+          config['plugins']['updater']['pubkey'] = ''
+          config['bundle']['createUpdaterArtifacts'] = False
+          config_path.write_text(json.dumps(config, indent=2))
+          for name in ('account.rs', 'secure_storage.rs'):
+              path = root / 'src-tauri/src' / name
+              path.write_text(path.read_text().replace('"iloader"', '"fitai-watch-installer-experimental"'))
+          Path('BUILD-INFO.txt').write_text(
+              'UNOFFICIAL experimental Watch installer. Not endorsed by iloader maintainers.\n'
+              'Official iloader: https://iloader.app / https://github.com/nab138/iloader\n'
+              'Public Watch work: https://github.com/Rzbck/iloader-watch-companion\n'
+              'App source: Rzbck/iloader@70f37e9b4afc659ab44ec1944c034093f4cda416\n'
+              'Backend: Rzbck/isideload@f7b9f3da570edd6824c29680545e710846d07df5\n'
+              'Local patches: separate app identifier/keyring namespace, explicit experimental title, no updater.\n'
+              'No Apple credentials, certificates, pairing data or health data supplied to this build.\n'
+              'Build success is not proof of installation on the user device.\n')
+      - name: Build prerequisites
+        shell: pwsh
+        run: choco install strawberryperl make --no-progress -y
+      - name: Backend unit tests
+        working-directory: backend
+        run: cargo test --locked -p isideload --lib
+      - name: Frontend dependencies
+        working-directory: installer
+        run: bun install --frozen-lockfile
+      - name: Build Windows executable without signing secrets
+        working-directory: installer
+        run: bunx tauri build --no-bundle
+      - name: Package reviewable result
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifact -Force
+          Copy-Item cargo-target/release/iloader.exe artifact/iloader-watch-experimental.exe
+          Copy-Item BUILD-INFO.txt artifact/
+          Copy-Item installer/LICENSE artifact/LICENSE-iloader.txt
+          Copy-Item installer/LICENSE-BRANDING artifact/
+          Copy-Item backend/LICENSE artifact/LICENSE-isideload.txt
+          Get-FileHash artifact/iloader-watch-experimental.exe -Algorithm SHA256 | Format-List | Out-File artifact/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UNOFFICIAL-WATCH-INSTALLER-REVIEW
+          path: artifact
+          retention-days: 7

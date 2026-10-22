@@ -72,14 +72,15 @@ jobs:
           start = text.index('    async fn get_client_info(&self)')
           end = text.index('\n    fn needs_provisioning', start)
           replacement = '''    async fn get_client_info(&self) -> Result<AnisetteClientInfo, Report> {
-                  self.client
+                  let info = self.client
                       .get(format!("{}/v3/client_info", self.url))
                       .send().await
                       .context("Failed to request anisette client info")?
                       .error_for_status()
                       .context("Anisette client info status error")?
                       .json::<AnisetteClientInfo>().await
-                      .context("Failed to parse anisette client info")
+                      .context("Failed to parse anisette client info")?;
+                  Ok(info)
               }
           '''
           path.write_text(text[:start] + replacement + text[end:])

@@ -29,10 +29,28 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project FitAICoach.xcodeproj -scheme FitAICoach -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build/DeviceDerived CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/device-build.log
+      - name: Preserve HealthKit entitlements for subsequent Apple signing
+        run: |
+          app=build/DeviceDerived/Build/Products/Release-iphoneos/FitAICoach.app
+          watch="$app/Watch/FitAICoachWatch.app"
+          codesign --force --sign - --entitlements Config/Watch.entitlements --generate-entitlement-der "$watch"
+          codesign --force --sign - --entitlements Config/iOS.entitlements --generate-entitlement-der "$app"
+          codesign --verify --strict "$watch"
+          codesign --verify --strict "$app"
+          codesign --display --entitlements - "$app" > build/device/iOS-entitlements.plist
+          codesign --display --entitlements - "$watch" > build/device/Watch-entitlements.plist
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          for name in ('iOS', 'Watch'):
+              entitlements = plistlib.loads(Path(f'build/device/{name}-entitlements.plist').read_bytes())
+              assert entitlements.get('com.apple.developer.healthkit') is True, name
+          print('Both local ad-hoc signatures preserve the HealthKit entitlement. Apple provisioning is still required.')
+          PY
       - name: Verify ARM64 device platforms and package unsigned IPA
         run: |
           python3 scripts/package_device.py build/DeviceDerived/Build/Products/Release-iphoneos/FitAICoach.app build/device/UNSIGNED-DEVICE-FitAICoach.ipa
-          printf '%s\n' 'Physical iOS/watchOS ARM64 build. UNSIGNED: requires Apple signing and device provisioning. This file is not ready to install.' > build/device/SIGNING-REQUIRED.txt
+          printf '%s\n' 'Physical iOS/watchOS device build. Local ad-hoc signatures preserve HealthKit metadata only. Requires Apple signing and device provisioning before installation.' > build/device/SIGNING-REQUIRED.txt
       - name: Save physical-device build and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

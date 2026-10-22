@@ -12,6 +12,7 @@ jobs:
     timeout-minutes: 45
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
+      PYTHONUTF8: '1'
     steps:
       - name: Fetch pinned public sources
         shell: pwsh

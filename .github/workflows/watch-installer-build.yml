@@ -1,6 +1,9 @@
 name: Experimental Watch installer build
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/watch-installer-build.yml'
 permissions:
   contents: read
 jobs:
